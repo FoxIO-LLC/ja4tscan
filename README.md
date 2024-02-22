@@ -19,6 +19,13 @@ Additionally, the `--dedup-method` flag is set to `none` to ensure that retransm
 
 Without the `dedup-method` flag, the probe will not generate any SYN retransmits. You will only still be able to record JA4TScan fingerprints for SYN packets but without retrasmissions.
 
+### Instructions to build and run.
+```
+sudo ./build.sh
+sudo python3 ja4tscan.py -p 80 -r 10 204.79.197.212/28 -o output.csv -s 172.23.191.200 --output-fields=timestamp,ja4ts,daddr --probe-module=ja4ts --dedup-method none
+sudo python3 ja4tscan.py -p 80 -r 10 204.79.197.212/28 -o output.csv -s 172.23.191.200 --output-fields=timestamp,ja4ts,daddr --probe-module=ja4ts 
+```
+
 ZMap: The Internet Scanner
 ==========================
 
