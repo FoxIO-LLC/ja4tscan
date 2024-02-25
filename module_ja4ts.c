@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <math.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "cachehash.h"
 
@@ -37,6 +38,8 @@
 #define TCP_OPTION_KIND_NO_OP 1
 #define TCP_OPTION_END 0
 
+#define RST_TIMEOUT  120
+
 static uint16_t num_source_ports;
 static cachehash *ch = NULL;
 
@@ -48,12 +51,20 @@ typedef struct ja4t_tuple {
 } ja4t_tuple_t;
 
 typedef struct ja4t_timedata {
-	struct timespec ts;
-	uint16_t window_size;
-	uint16_t mss_value;
-	uint8_t scaling_factor;
-	char *options;
 	char retransmits[256];
+	char ja4ts_str[512];
+	char *options;
+	uint8_t scaling_factor;
+	uint16_t mss_value;
+	uint16_t window_size;
+	uint64_t sport;
+	uint64_t dport;
+	uint64_t seq;
+	uint64_t ack;
+	uint64_t ip_src_num;
+	int rst;
+	struct timespec ts;
+	fieldset_t *fs;
 } ja4t_timedata_t;
 
 static int num_of_digits(int n)
@@ -96,6 +107,65 @@ size_t set_additional_options(struct tcphdr *tcp_header)
         // Update the header length
         tcp_header->th_off += 4;
         return tcp_header->th_off * 4;
+}
+
+static void compute_ja4ts( fieldset_t *fs, ja4t_timedata_t *timedata ) {
+        // Calculate the required size for ja4ts_str
+        int required_size =
+            snprintf(NULL, 0, "%u", timedata->window_size) +
+            strlen(timedata->options) + // For b: TCP Parameters
+            strlen("_") +		   // Separator between b and c
+            num_of_digits(timedata->mss_value) +		   // For c: MSS mss_value
+            strlen("_") +		   // Separator between c and d
+            num_of_digits(timedata->scaling_factor) + 2;  // For d: Window Scale
+		
+       	int extra_room = strlen(timedata->retransmits);
+
+        // Allocate memory for ja4ts_str
+        //char *ja4ts_str = (char *)malloc(required_size + extra_room);
+
+       	// Construct ja4ts_str
+       	snprintf(timedata->ja4ts_str, required_size, "%u_%s_%02u_%d",
+       		 timedata->window_size, timedata->options, timedata->mss_value,
+       		 timedata->scaling_factor);
+	
+       	// Allocate extra space to include retransmits
+       	if (extra_room > 0) {
+       	    snprintf(timedata->ja4ts_str + strlen(timedata->ja4ts_str), extra_room+1, "_%s", timedata->retransmits);
+       	}
+
+	fs_add_uint64(fs, "sport", timedata->sport);
+        fs_add_uint64(fs, "dport", timedata->dport);
+        fs_add_uint64(fs, "seqnum", timedata->seq);
+        fs_add_uint64(fs, "acknum", timedata->ack);
+        fs_add_uint64(fs, "window", timedata->window_size);
+        fs_add_string(fs, "ja4ts", (char *)timedata->ja4ts_str, 0);
+        fs_add_uint64(fs, "timestamp", (uint64_t) timedata->ts.tv_sec);
+        fs_add_uint64(fs, "ip_src_num", timedata->ip_src_num);
+
+	if (timedata->rst == 1) {
+		fs_add_constchar(fs, "classification", "rst");
+		fs_add_bool(fs, "success", 1);
+	} else {
+		fs_add_constchar(fs, "classification", "synack");
+		fs_add_bool(fs, "success", 0);
+	}
+	fs_add_null_icmp(fs);
+}
+
+static void *timeout_rst ( void *data ) {
+	ja4t_timedata_t *t = data;
+	if (t->rst == 0) {
+	    struct timespec now;	
+	    clock_gettime(CLOCK_REALTIME, &now);
+	    if ((now.tv_sec - t->ts.tv_sec) > RST_TIMEOUT) {
+		    t->rst = 1;
+		    //compute_ja4ts(t->fs, t);
+		    //printf("Timing out packet .... %s\n", t->ja4ts_str);
+		    //fs_modify_string(t->fs, "classification", "rst", 1);
+		    //fs_add_bool(t->fs, "success", 1);
+	    }
+	}
 }
 
 static int ja4tscan_global_initialize(struct state_conf *state)
@@ -236,52 +306,50 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		struct tcphdr *tcp = get_tcp_header(ip_hdr, len);
 		assert(tcp);
 
-		ja4t_tuple_t t = {.saddr = ip_hdr->ip_src.s_addr, .daddr = ip_hdr->ip_dst.s_addr, .sport = tcp->th_sport, .dport = tcp->th_dport };
+		ja4t_tuple_t t = {.saddr = ip_hdr->ip_src.s_addr, .daddr = ip_hdr->ip_dst.s_addr, .sport = ntohs(tcp->th_sport), .dport = ntohs(tcp->th_dport) };
 		ja4t_timedata_t *timedata = cachehash_get(ch, &t, sizeof(ja4t_tuple_t));
 
-		if (timedata != NULL) {
-		    int diff = timediff(&ts, &timedata->ts);
-		    if (tcp->th_flags & TH_RST) { 
-		        snprintf(timedata->retransmits + strlen(timedata->retransmits), num_of_digits(diff)+3, "R%d-", diff);
-		    } else {
-		        snprintf(timedata->retransmits + strlen(timedata->retransmits), num_of_digits(diff)+2, "%d-", diff);
-	 	    }
-		    timedata->ts.tv_sec = ts.tv_sec;
-		    timedata->ts.tv_nsec = ts.tv_nsec;
-		} else {
+		// JA4TS IMPLEMENTATION
+		if (timedata == NULL) {
 		    timedata = malloc(sizeof(ja4t_timedata_t));
 	            timedata->ts.tv_sec = ts.tv_sec;
 	            timedata->ts.tv_nsec = ts.tv_nsec;
 		    timedata->retransmits[0] = '\0';
+		    timedata->ja4ts_str[0] = '\0';
 		    timedata->options = malloc(sizeof(char) * 100);
 		    timedata->options[0] = '\0';
 		    timedata->window_size = 0;
 		    timedata->scaling_factor = 0;
 		    timedata->mss_value = 0;
+		    timedata->rst = 0;
+		    timedata->sport = ntohs(tcp->th_sport);
+		    timedata->dport = ntohs(tcp->th_dport);
+		    timedata->seq = ntohl(tcp->th_seq);
+		    timedata->ack = ntohl(tcp->th_ack);
+		    timedata->ip_src_num = (uint64_t)ntohl(ip_hdr->ip_src.s_addr);
+		    timedata->fs = fs;
 		    cachehash_put(ch, &t, sizeof(ja4t_tuple_t), (void *)timedata);
-		}
 
-		// JA4TS IMPLEMENTATION
-		// Pointer to the start of TCP options
-		// +1 because the 'tcp' variable points to the TCP header
-		uint8_t *tcp_options = (uint8_t *)(tcp + 1);
+		    // Pointer to the start of TCP options
+		    // +1 because the 'tcp' variable points to the TCP header
+		    uint8_t *tcp_options = (uint8_t *)(tcp + 1);
 
-		// Length of TCP options field in 32-bit words (DWORDs)
-		// th_off is the offset in 32-bit words
-		int options_length = (tcp->th_off - 5) * 4;
-		int buffer_size = options_length;
+		    // Length of TCP options field in 32-bit words (DWORDs)
+		    // th_off is the offset in 32-bit words
+		    int options_length = (tcp->th_off - 5) * 4;
+		    int buffer_size = options_length;
 
-		// PARSE OPTIONS
-		uint8_t remaining_length = options_length;
-		int offset = 0;
+		    // PARSE OPTIONS
+		    uint8_t remaining_length = options_length;
+		    int offset = 0;
 
-		// initialize variables
-		uint16_t mss_value = 0;
-		uint8_t scaling_factor = 0;
-		uint8_t option_kinds[100];
-		int num_option_kinds = 0;
+		    // initialize variables
+		    uint16_t mss_value = 0;
+		    uint8_t scaling_factor = 0;
+		    uint8_t option_kinds[100];
+		    int num_option_kinds = 0;
 
-		while (remaining_length > 0) {
+		    while (remaining_length > 0) {
 			if (remaining_length < sizeof(uint8_t)) {
 				// Not enough bytes left for any more options
 				break;
@@ -317,12 +385,12 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 
 			case TCP_OPTION_KIND_NO_OP:
 				// has no option length, decrement remaining_length by 1
-				remaining_length--;
+				//remaining_length--; (Bug fix: this decrements by an additional 1)
 				break;
 
 			case TCP_OPTION_END:
 				// end of options, set remaining_length to 0
-				remaining_length = 0;
+				remaining_length = 1; //(Buf fix: was setting this to 0 making remaining length -ve)
 				break;
 
 			default:
@@ -336,12 +404,11 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 			if (offset > buffer_size) {
 				break;
 			}
-		}
+		    }
 
-		// b: TCP Parameters
-		// Options are processed only for the first SYN-ACK
-		// For retransmissions and RST, we use the cached value
-		if (strlen(timedata->options) == 0) {
+		    // b: TCP Parameters
+		    // Options are processed only for the first SYN-ACK
+		    // For retransmissions and RST, we use the cached value
 		    for (int i = 0; i < num_option_kinds; i++) {
 			// Convert the current option kind to a string
 			char option_kind_str[5];
@@ -359,65 +426,34 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 
 		    if (strlen(timedata->options) == 0)
 		        snprintf(timedata->options, 3, "%s", "00");
-	 	}
 
-		// a: window size
-		// Window size is processed from the first SYN-ACK
-		if (timedata->window_size == 0) 
+		    // a: window size
 		    timedata->window_size = ntohs(tcp->th_win);
-		if (timedata->mss_value == 0) 
 		    timedata->mss_value = mss_value;
-		if (timedata->scaling_factor == 0) 
 		    timedata->scaling_factor = scaling_factor;
 
-		// Calculate the required size for ja4ts_str
-		int required_size =
-		    snprintf(NULL, 0, "%u", timedata->window_size) +
-		    strlen(timedata->options) + // For b: TCP Parameters
-		    strlen("_") +		   // Separator between b and c
-		    num_of_digits(timedata->mss_value) +		   // For c: MSS mss_value
-		    strlen("_") +		   // Separator between c and d
-		    num_of_digits(timedata->scaling_factor) + 2;  // For d: Window Scale
-		
-		int extra_room = 0;		
-		if ((timedata != NULL) && (strlen(timedata->retransmits) > 0))
-		    extra_room = strlen(timedata->retransmits);
+		} else {
+		    int diff = timediff(&ts, &timedata->ts);
+		    if (tcp->th_flags & TH_RST) { 
+		        snprintf(timedata->retransmits + strlen(timedata->retransmits), num_of_digits(diff)+3, "R%d-", diff);
+		    } else {
+		        snprintf(timedata->retransmits + strlen(timedata->retransmits), num_of_digits(diff)+2, "%d-", diff);
+	 	    }
 
-		// Allocate memory for ja4ts_str
-		char *ja4ts_str = (char *)malloc(required_size + extra_room);
-
-		// Construct ja4ts_str
-		snprintf(ja4ts_str, required_size, "%u_%s_%02u_%d",
-			 timedata->window_size, timedata->options, timedata->mss_value,
-			 timedata->scaling_factor);
-	
-		// Allocate extra space to include retransmits
-		if (extra_room > 0) {
-		    snprintf(ja4ts_str + strlen(ja4ts_str), extra_room+1, "_%s", timedata->retransmits);
+		    timedata->ts.tv_sec = ts.tv_sec;
+		    timedata->ts.tv_nsec = ts.tv_nsec;
+		    timedata->ja4ts_str[0] = '\0';
 		}
 
-		log_debug("ja4ts", "JA4TS: %s", ja4ts_str);
-		log_debug("ja4ts", "IP: %s",
-			  make_ip_str(ip_hdr->ip_src.s_addr));
-
-		fs_add_uint64(fs, "sport", (uint64_t)ntohs(tcp->th_sport));
-		fs_add_uint64(fs, "dport", (uint64_t)ntohs(tcp->th_dport));
-		fs_add_uint64(fs, "seqnum", (uint64_t)ntohl(tcp->th_seq));
-		fs_add_uint64(fs, "acknum", (uint64_t)ntohl(tcp->th_ack));
-		fs_add_uint64(fs, "window", (uint64_t)ntohs(tcp->th_win));
-		fs_add_string(fs, "ja4ts", (char *)ja4ts_str, 0);
-		fs_add_uint64(fs, "timestamp", (uint64_t)ts.tv_sec);
-		fs_add_uint64(fs, "ip_src_num",
-			      (uint64_t)ntohl(ip_hdr->ip_src.s_addr));
-
-		if (tcp->th_flags & TH_RST) { // RST packet
-			fs_add_constchar(fs, "classification", "rst");
-			fs_add_bool(fs, "success", 0);
-		} else { // SYNACK packet
-			fs_add_constchar(fs, "classification", "synack");
-			fs_add_bool(fs, "success", 1);
+		if (tcp->th_flags & TH_RST) { 
+			timedata->rst = 1;
 		}
-		fs_add_null_icmp(fs);
+
+		compute_ja4ts (fs, timedata);
+
+        	log_debug("ja4ts", "JA4TS: %s", timedata->ja4ts_str);
+		log_debug("ja4ts", "IP: %s",  make_ip_str(ip_hdr->ip_src.s_addr));
+
 	} else if (ip_hdr->ip_p == IPPROTO_ICMP) {
 		log_debug("ja4ts", "ICMP packet");
 		// tcp
@@ -433,7 +469,11 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		// icmp
 		fs_populate_icmp_from_iphdr(ip_hdr, len, fs);
 	}
+
+	cachehash_iter( ch, timeout_rst );
 }
+
+
 
 static fielddef_t fields[] = {
     {.name = "sport", .type = "int", .desc = "TCP source port"},
@@ -458,7 +498,7 @@ probe_module_t module_ja4ts = {
     .global_initialize = &ja4tscan_global_initialize,
     .thread_initialize = &ja4tscan_init_perthread,
     .make_packet = &ja4tscan_make_packet,
-    .print_packet = &synscan_print_packet,
+    .print_packet = NULL, //&synscan_print_packet,
     .process_packet = &ja4tscan_process_packet,
     .validate_packet = &ja4tscan_validate_packet,
     .close = NULL,
