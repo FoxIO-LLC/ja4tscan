@@ -65,6 +65,7 @@ typedef struct ja4t_timedata {
 	int rst;
 	struct timespec ts;
 	fieldset_t *fs;
+	struct ip *ip;
 } ja4t_timedata_t;
 
 static int num_of_digits(int n)
@@ -159,11 +160,13 @@ static void *timeout_rst ( void *data ) {
 	    struct timespec now;	
 	    clock_gettime(CLOCK_REALTIME, &now);
 	    if ((now.tv_sec - t->ts.tv_sec) > RST_TIMEOUT) {
+                    fieldset_t *fs = fs_new_fieldset(&zconf.fsconf.defs);
+	            fs_add_ip_fields(fs, t->ip);
+
+		    // Set RST and FS
 		    t->rst = 1;
-		    //compute_ja4ts(t->fs, t);
-		    //printf("Timing out packet .... %s\n", t->ja4ts_str);
-		    //fs_modify_string(t->fs, "classification", "rst", 1);
-		    //fs_add_bool(t->fs, "success", 1);
+		    t->fs = fs;
+		    compute_ja4ts(t->fs, t);
 	    }
 	}
 }
@@ -174,6 +177,14 @@ static int ja4tscan_global_initialize(struct state_conf *state)
 	    state->source_port_last - state->source_port_first + 1;
 	return EXIT_SUCCESS;
 }
+
+static int ja4tscan_cleanup(UNUSED struct state_conf *zconf,
+	UNUSED struct state_send *zsend,
+	UNUSED struct state_recv *zrecv)
+{
+	return EXIT_SUCCESS;
+}
+
 
 static int ja4tscan_init_perthread(void *buf, macaddr_t *src, macaddr_t *gw,
 				   UNUSED void **arg_ptr)
@@ -328,6 +339,7 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		    timedata->ack = ntohl(tcp->th_ack);
 		    timedata->ip_src_num = (uint64_t)ntohl(ip_hdr->ip_src.s_addr);
 		    timedata->fs = fs;
+		    timedata->ip = ip_hdr;
 		    cachehash_put(ch, &t, sizeof(ja4t_tuple_t), (void *)timedata);
 
 		    // Pointer to the start of TCP options
@@ -501,7 +513,7 @@ probe_module_t module_ja4ts = {
     .print_packet = NULL, //&synscan_print_packet,
     .process_packet = &ja4tscan_process_packet,
     .validate_packet = &ja4tscan_validate_packet,
-    .close = NULL,
+    .close = &ja4tscan_cleanup,
     .helptext = "Probe module that sends a TCP SYN packet to a specific "
 		"port. Possible classifications are: synack and rst. A "
 		"SYN-ACK packet is considered a success and a reset packet "
