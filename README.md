@@ -11,19 +11,26 @@ For building from source, follow Zmap's instructions in the installation section
 This tool can be used the same way as Zmap with a few caveats.
 
 Example:
-`sudo zmap -N 1000 -B 10M -p 443 -o output.csv --output-fields=saddr,ja4ts,dport --probe-module=ja4ts --dedup-method none`
+`sudo python3 ja4tscan 204.79.197.212/28`
 
-The `--probe-module` flag specifies the probe module to use. In this case, `ja4ts` is used. The `--output-fields` flag specifies the fields to include in the output. The `ja4ts` field is included in the output.
+By default, ja4tscan sets the following attributes while calling zmap
+    + `--probe-module` flag specifies the probe module to use as ja4ts. i
+    + `--output-fields` flag specifies the fields to include 'timestamp,saddr,ja4ts' in the output. 
+    + `--retransmit` flag is set to no by default, specifying --dedup-method none to be used by zmap.
 
-Additionally, the `--dedup-method` flag is set to `none` to ensure that retransmission packets are captured. When dedup-method is specified to be 'none', we use iptables to drop RST packets coming from servers. This way, we can send SYN retransmits.
+    the `--dedup-method` flag is set to `none` to ensure that retransmission packets are captured. When dedup-method is specified to be 'none', we use iptables to drop RST packets coming from servers. This way, we can send SYN retransmits.
 
-Without the `dedup-method` flag, the probe will not generate any SYN retransmits. You will only still be able to record JA4TScan fingerprints for SYN packets but without retrasmissions.
+    Without the `retransmit flag`, `dedup-method` is set to full. This means the probe will not generate any SYN retransmits. You will only still be able to record JA4TScan fingerprints for SYN packets but without retrasmissions.
 
 ### Instructions to build and run.
 ```
 sudo ./build.sh
-sudo python3 ja4tscan.py -p 80 -r 10 204.79.197.212/28 -o output.csv -s 172.23.191.200 --output-fields=timestamp,ja4ts,daddr --probe-module=ja4ts --dedup-method none
-sudo python3 ja4tscan.py -p 80 -r 10 204.79.197.212/28 -o output.csv -s 172.23.191.200 --output-fields=timestamp,ja4ts,daddr --probe-module=ja4ts 
+
+# Run with the default mode, i.e., retransmit yes.
+sudo python3 ja4tscan.py 204.79.197.212/28 
+
+# Run without retransmits
+sudo python3 ja4tscan.py 204.79.197.212/28 --retransmit no
 ```
 
 ZMap: The Internet Scanner
