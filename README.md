@@ -14,13 +14,13 @@ Example:
 `sudo python3 ja4tscan 204.79.197.212/28`
 
 By default, ja4tscan sets the following attributes while calling zmap
-    + `--probe-module` flag specifies the probe module to use as ja4ts. i
-    + `--output-fields` flag specifies the fields to include 'timestamp,saddr,ja4ts' in the output. 
-    + `--retransmit` flag is set to no by default, specifying --dedup-method none to be used by zmap.
+  * `--probe-module` flag specifies the probe module to use as ja4ts.
+  * `--output-fields` flag specifies the fields to include 'timestamp,saddr,ja4ts' in the output. 
+  * `--retransmit` flag is set to "yes" by default, specifying --dedup-method none to be used by zmap.
 
-    the `--dedup-method` flag is set to `none` to ensure that retransmission packets are captured. When dedup-method is specified to be 'none', we use iptables to drop RST packets coming from servers. This way, we can send SYN retransmits.
+    When `--dedup-method` is set to `none` retransmission packets are captured. We do this by using iptables to drop RST packets coming from servers. This way, we can receive SYN retransmits.
 
-    Without the `retransmit flag`, `dedup-method` is set to full. This means the probe will not generate any SYN retransmits. You will only still be able to record JA4TScan fingerprints for SYN packets but without retrasmissions.
+    when the `retransmit` flag is set to "yes", `dedup-method` is set to full. This means the probe will not generate any SYN retransmits. You will only still be able to record JA4TScan fingerprints for SYN packets but without retrasmissions.
 
 ### Instructions to build and run.
 ```
