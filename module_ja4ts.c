@@ -42,6 +42,7 @@
 
 static uint16_t num_source_ports;
 static cachehash *ch = NULL;
+static int timed_out_entries = 0;
 
 typedef struct ja4t_tuple {
         int saddr;
@@ -158,6 +159,7 @@ static void *timeout_rst ( void *data ) {
 	ja4t_timedata_t *t = data;
 	if (t->rst == 0) {
 	    struct timespec now;	
+	    timed_out_entries++;
 	    clock_gettime(CLOCK_REALTIME, &now);
 	    if ((now.tv_sec - t->ts.tv_sec) > RST_TIMEOUT) {
                     fieldset_t *fs = fs_new_fieldset(&zconf.fsconf.defs);
@@ -165,6 +167,7 @@ static void *timeout_rst ( void *data ) {
 
 		    // Set RST and FS
 		    t->rst = 1;
+	            timed_out_entries--;
 		    t->fs = fs;
 		    compute_ja4ts(t->fs, t);
 	    }
@@ -182,6 +185,16 @@ static int ja4tscan_cleanup(UNUSED struct state_conf *zconf,
 	UNUSED struct state_send *zsend,
 	UNUSED struct state_recv *zrecv)
 {
+	if (zconf->dedup_method == DEDUP_METHOD_NONE) {
+		// we wait for 2 minutes with an interval of 30 seconds
+		for (int i=0; i<12; i++) {
+		    sleep(10);
+		    timed_out_entries = 0;
+	            cachehash_iter( ch, timeout_rst );
+		    if (timed_out_entries == 0)
+	 	        break;
+		}
+	}
 	return EXIT_SUCCESS;
 }
 
