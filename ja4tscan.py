@@ -34,8 +34,8 @@ if __name__ == '__main__':
     parser.add_argument('dest', help='destination network (ex, 203.123.123.0/24) ')
     parser.add_argument('-r', '--rate', help='zmap rate (defaults to 10)')
     parser.add_argument('-p', '--port', help='tcp source port (defaults to 80)')
-    parser.add_argument('--output-fields', help='zmap output fields (defaults to timestamp,saddr,ja4tscan')
-    parser.add_argument('-o', '--output-file', help='default output goes to output.csv')
+    parser.add_argument('--output-fields', help='zmap output fields (defaults to timestamp,saddr,ja4tscan)')
+    parser.add_argument('-o', '--output-file', choices=['console', 'csv'], help='default is set to console and output.csv is also generated')
     parser.add_argument('--retransmit', choices=['yes', 'no'], help='translates to zmap dedup-method, default is yes (dedup-method none)')
 
     try:
@@ -60,6 +60,7 @@ if __name__ == '__main__':
         cmd = f"zmap -p {sport} -r {rate} {dest} -o 'output.csv' --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method}\
                  --output-filter='classification=rst'"
     else:
+        cleanup_iptables()
         cmd = f"zmap -p {sport} -r {rate} {dest} -o 'output.csv' --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method}"
 
     try:
