@@ -38,11 +38,12 @@
 #define TCP_OPTION_KIND_NO_OP 1
 #define TCP_OPTION_END 0
 
-#define RST_TIMEOUT  120
+#define RST_TIMEOUT  1
 
 static uint16_t num_source_ports;
 static cachehash *ch = NULL;
 static int timed_out_entries = 0;
+fielddefset_t *ja4ts_fds;
 
 typedef struct ja4t_tuple {
         int saddr;
@@ -74,9 +75,9 @@ static int num_of_digits(int n)
 	return ( n==0 ) ? 1 : (int) log10(n)+1;
 }
 
-static int timediff(const struct timespec *time1, const struct timespec *time0) {
-  	return (int) (((time1->tv_sec - time0->tv_sec)
-            + (time1->tv_nsec - time0->tv_nsec) / 1000000000.0) * 10);
+static int timediff(const struct timespec *current, const struct timespec *prev) {
+  	return (int) (((current->tv_sec - prev->tv_sec)
+            + (current->tv_nsec - prev->tv_nsec) / 1000000000.0) * 10);
 }
 
 size_t set_additional_options(struct tcphdr *tcp_header)
@@ -157,19 +158,20 @@ static void compute_ja4ts( fieldset_t *fs, ja4t_timedata_t *timedata ) {
 
 static void *timeout_rst ( void *data ) {
 	ja4t_timedata_t *t = data;
-	if (t->rst == 0) {
+	if ( t && (t->rst == 0)) {
 	    struct timespec now;	
 	    timed_out_entries++;
 	    clock_gettime(CLOCK_REALTIME, &now);
 	    if ((now.tv_sec - t->ts.tv_sec) > RST_TIMEOUT) {
-                    fieldset_t *fs = fs_new_fieldset(&zconf.fsconf.defs);
-	            fs_add_ip_fields(fs, t->ip);
-
-		    // Set RST and FS
-		    t->rst = 1;
-	            timed_out_entries--;
-		    t->fs = fs;
-		    compute_ja4ts(t->fs, t);
+                    fieldset_t *fs = fs_new_fieldset(ja4ts_fds);
+	            if (t->ip->ip_p == IPPROTO_TCP) {
+	                    fs_add_ip_fields(fs, t->ip);
+		            // Set RST and FS
+		            t->rst = 1;
+	                    timed_out_entries--;
+		            t->fs = fs;
+		            compute_ja4ts(t->fs, t);
+		    }
 	    }
 	}
 }
@@ -178,21 +180,22 @@ static int ja4tscan_global_initialize(struct state_conf *state)
 {
 	num_source_ports =
 	    state->source_port_last - state->source_port_first + 1;
+	ja4ts_fds = &(state->fsconf.defs);
 	return EXIT_SUCCESS;
 }
 
-static int ja4tscan_cleanup(UNUSED struct state_conf *zconf,
+static int ja4tscan_cleanup(struct state_conf *zconf,
 	UNUSED struct state_send *zsend,
 	UNUSED struct state_recv *zrecv)
 {
 	if (zconf->dedup_method == DEDUP_METHOD_NONE) {
 		// we wait for 2 minutes with an interval of 30 seconds
 		for (int i=0; i<12; i++) {
-		    sleep(10);
 		    timed_out_entries = 0;
 	            cachehash_iter( ch, timeout_rst );
 		    if (timed_out_entries == 0)
 	 	        break;
+		    sleep(10);
 		}
 	}
 	return EXIT_SUCCESS;
@@ -352,7 +355,8 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		    timedata->ack = ntohl(tcp->th_ack);
 		    timedata->ip_src_num = (uint64_t)ntohl(ip_hdr->ip_src.s_addr);
 		    timedata->fs = fs;
-		    timedata->ip = ip_hdr;
+		    timedata->ip = malloc(sizeof(struct ip));
+		    memcpy(timedata->ip, ip_hdr, sizeof(struct ip));
 		    cachehash_put(ch, &t, sizeof(ja4t_tuple_t), (void *)timedata);
 
 		    // Pointer to the start of TCP options
@@ -460,6 +464,8 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		} else {
 		    int diff = timediff(&ts, &timedata->ts);
 		    if (tcp->th_flags & TH_RST) { 
+	//printf("current---> %s - %d:%d:%d\n", make_ip_str(ip_hdr->ip_src.s_addr), ts.tv_sec, ts.tv_nsec, diff);
+	//printf("prev---> %s - %d:%d:%d\n", make_ip_str(ip_hdr->ip_src.s_addr), timedata->ts.tv_sec, timedata->ts.tv_nsec, diff);
 		        snprintf(timedata->retransmits + strlen(timedata->retransmits), num_of_digits(diff)+3, "R%d-", diff);
 		    } else {
 		        snprintf(timedata->retransmits + strlen(timedata->retransmits), num_of_digits(diff)+2, "%d-", diff);
