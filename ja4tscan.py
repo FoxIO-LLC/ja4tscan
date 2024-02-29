@@ -17,6 +17,21 @@ def cleanup_iptables():
     os.system('iptables -t filter -D INPUT -p icmp -j ACCEPT')
     os.system('iptables -t filter -D INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT')
 
+def post_process_output(filename):
+    lastlines = {}
+    with open(filename) as fp:
+        lines = fp.readlines()
+        _idx = [ x == 'saddr' for x in lines[0].split(',') ].index(True)
+
+        for line in lines[1:]:
+            tokens = line.split(',')
+            source = tokens[_idx]
+            lastlines[source] = line
+
+    with open(filename, 'w') as fp:
+        for ip in lastlines:
+            fp.write(lastlines[ip])
+
 if __name__ == '__main__':
     args = " ".join(x for x in sys.argv[1:])
 
@@ -38,6 +53,8 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output-file', choices=['console', 'csv'], help='default is set to console and output.csv is also generated')
     parser.add_argument('--retransmit', choices=['yes', 'no'], help='translates to zmap dedup-method, default is yes (dedup-method none)')
 
+    filename = 'output.csv'
+
     try:
         args = parser.parse_args()
         dest = args.dest
@@ -57,19 +74,20 @@ if __name__ == '__main__':
 
     if dedup_method == 'none': 
         setup_iptables()
-        cmd = f"zmap -p {sport} -r {rate} {dest} -o 'output.csv' --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method}\
-                 --output-filter='classification=rst'"
+        cmd = f"zmap -p {sport} -r {rate} {dest} -o {filename} --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method}"
+        #         --output-filter='classification=rst'"
     else:
         cleanup_iptables()
-        cmd = f"zmap -p {sport} -r {rate} {dest} -o 'output.csv' --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method}"
+        cmd = f"zmap -p {sport} -r {rate} {dest} -o {filename} --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method}"
 
     try:
         ret = os.system(cmd)
         if ret > 0:
             sys.exit(0)
 
+        post_process_output(filename)
         if output_file == 'console':
-            os.system(f"cat output.csv")
+            os.system(f"cat {filename}")
     except Exception as e:
         sys.exit(0)
 

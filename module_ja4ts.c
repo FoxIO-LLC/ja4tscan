@@ -38,7 +38,7 @@
 #define TCP_OPTION_KIND_NO_OP 1
 #define TCP_OPTION_END 0
 
-#define RST_TIMEOUT  120
+#define RST_TIMEOUT 120
 
 static uint16_t num_source_ports;
 static cachehash *ch = NULL;
@@ -48,8 +48,6 @@ fielddefset_t *ja4ts_fds;
 typedef struct ja4t_tuple {
         int saddr;
         int daddr;
-        int sport;
-        int dport;
 } ja4t_tuple_t;
 
 typedef struct ja4t_timedata {
@@ -171,15 +169,16 @@ static void *timeout_rst ( void *data ) {
 	    struct timespec now;	
 	    timed_out_entries++;
 	    clock_gettime(CLOCK_REALTIME, &now);
-	    if ((now.tv_sec - t->ts.tv_sec) > RST_TIMEOUT) {
-                    fieldset_t *fs = fs_new_fieldset(ja4ts_fds);
+	    if ((now.tv_sec - t->ts.tv_sec) >= RST_TIMEOUT) {
+                    //fieldset_t *fs = fs_new_fieldset(ja4ts_fds);
 	            if (t->ip->ip_p == IPPROTO_TCP) {
-	                    fs_add_ip_fields(fs, t->ip);
+	                    //fs_add_ip_fields(fs, t->ip);
 		            // Set RST and FS
 		            t->rst = 1;
 	                    timed_out_entries--;
-		            t->fs = fs;
-		            compute_ja4ts(t->fs, t);
+		            //t->fs = fs;
+		            //compute_ja4ts(t->fs, t);
+			    //printf("Computed ja4 final hash for ip %s\n", make_ip_str(t->ip->ip_src.s_addr));
 		    }
 	    }
 	}
@@ -189,6 +188,7 @@ static int ja4tscan_global_initialize(struct state_conf *state)
 {
 	num_source_ports =
 	    state->source_port_last - state->source_port_first + 1;
+        ch = cachehash_init(10000, NULL);
 	ja4ts_fds = &(state->fsconf.defs);
 	return EXIT_SUCCESS;
 }
@@ -214,7 +214,6 @@ static int ja4tscan_cleanup(struct state_conf *zconf,
 static int ja4tscan_init_perthread(void *buf, macaddr_t *src, macaddr_t *gw,
 				   UNUSED void **arg_ptr)
 {
-        ch = cachehash_init(10000, NULL);
 	struct ether_header *eth_header = (struct ether_header *)buf;
 	make_eth_header(eth_header, src, gw);
 	struct ip *ip_header = (struct ip *)(&eth_header[1]);
@@ -342,7 +341,7 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		struct tcphdr *tcp = get_tcp_header(ip_hdr, len);
 		assert(tcp);
 
-		ja4t_tuple_t t = {.saddr = ip_hdr->ip_src.s_addr, .daddr = ip_hdr->ip_dst.s_addr, .sport = ntohs(tcp->th_sport), .dport = ntohs(tcp->th_dport) };
+		ja4t_tuple_t t = {.saddr = ip_hdr->ip_src.s_addr, .daddr = ip_hdr->ip_dst.s_addr}; //, .sport = ntohs(tcp->th_sport), .dport = ntohs(tcp->th_dport) };
 		ja4t_timedata_t *timedata = cachehash_get(ch, &t, sizeof(ja4t_tuple_t));
 
 		// JA4TS IMPLEMENTATION
@@ -367,6 +366,7 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		    timedata->ip = malloc(sizeof(struct ip));
 		    memcpy(timedata->ip, ip_hdr, sizeof(struct ip));
 		    cachehash_put(ch, &t, sizeof(ja4t_tuple_t), (void *)timedata);
+
 
 		    // Pointer to the start of TCP options
 		    // +1 because the 'tcp' variable points to the TCP header
@@ -473,13 +473,10 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		} else {
 		    int diff = timediff(&ts, &timedata->ts);
 		    if (tcp->th_flags & TH_RST) { 
-	//printf("current---> %s - %d:%d:%d\n", make_ip_str(ip_hdr->ip_src.s_addr), ts.tv_sec, ts.tv_nsec, diff);
-	//printf("prev---> %s - %d:%d:%d\n", make_ip_str(ip_hdr->ip_src.s_addr), timedata->ts.tv_sec, timedata->ts.tv_nsec, diff);
 		        snprintf(timedata->retransmits + strlen(timedata->retransmits), num_of_digits(diff)+3, "R%d-", diff);
 		    } else {
 		        snprintf(timedata->retransmits + strlen(timedata->retransmits), num_of_digits(diff)+2, "%d-", diff);
 	 	    }
-
 		    timedata->ts.tv_sec = ts.tv_sec;
 		    timedata->ts.tv_nsec = ts.tv_nsec;
 		    timedata->ja4ts_str[0] = '\0';
@@ -513,8 +510,6 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 	cachehash_iter( ch, timeout_rst );
 }
 
-
-
 static fielddef_t fields[] = {
     {.name = "sport", .type = "int", .desc = "TCP source port"},
     {.name = "dport", .type = "int", .desc = "TCP destination port"},
@@ -538,7 +533,7 @@ probe_module_t module_ja4ts = {
     .global_initialize = &ja4tscan_global_initialize,
     .thread_initialize = &ja4tscan_init_perthread,
     .make_packet = &ja4tscan_make_packet,
-    .print_packet = NULL, //&synscan_print_packet,
+    .print_packet = NULL,
     .process_packet = &ja4tscan_process_packet,
     .validate_packet = &ja4tscan_validate_packet,
     .close = &ja4tscan_cleanup,
