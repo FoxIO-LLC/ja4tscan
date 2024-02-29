@@ -38,7 +38,7 @@
 #define TCP_OPTION_KIND_NO_OP 1
 #define TCP_OPTION_END 0
 
-#define RST_TIMEOUT  1
+#define RST_TIMEOUT  120
 
 static uint16_t num_source_ports;
 static cachehash *ch = NULL;
@@ -75,9 +75,18 @@ static int num_of_digits(int n)
 	return ( n==0 ) ? 1 : (int) log10(n)+1;
 }
 
-static int timediff(const struct timespec *current, const struct timespec *prev) {
-  	return (int) (((current->tv_sec - prev->tv_sec)
-            + (current->tv_nsec - prev->tv_nsec) / 1000000000.0) * 10);
+static int timediff(struct timespec *current, struct timespec *prev)
+{
+    struct timespec result;
+    result.tv_sec  = current->tv_sec  - prev->tv_sec;
+    result.tv_nsec = current->tv_nsec - prev->tv_nsec;
+    if (result.tv_nsec < 0) {
+        --result.tv_sec;
+        result.tv_nsec += 1000000000L;
+    }
+    float nsecs = ((float)result.tv_nsec / 1000000000);
+    int diff = result.tv_sec + (((nsecs - floor(nsecs))> 0.5) ? 1 : 0);
+    return diff;
 }
 
 size_t set_additional_options(struct tcphdr *tcp_header)
@@ -191,11 +200,11 @@ static int ja4tscan_cleanup(struct state_conf *zconf,
 	if (zconf->dedup_method == DEDUP_METHOD_NONE) {
 		// we wait for 2 minutes with an interval of 30 seconds
 		for (int i=0; i<12; i++) {
+		    sleep(10);
 		    timed_out_entries = 0;
 	            cachehash_iter( ch, timeout_rst );
 		    if (timed_out_entries == 0)
 	 	        break;
-		    sleep(10);
 		}
 	}
 	return EXIT_SUCCESS;
