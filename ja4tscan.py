@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     if dedup_method == 'none': 
         setup_iptables()
-        cmd = f"zmap -p {sport} -r {rate} {dest} -o {filename} --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method}"
+        cmd = f"zmap -p {sport} -r {rate} {dest} -o {filename} --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method} --cooldown-time=120"
         #         --output-filter='classification=rst'"
     else:
         cleanup_iptables()

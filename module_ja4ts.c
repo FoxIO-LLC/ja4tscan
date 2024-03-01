@@ -340,7 +340,6 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 	if (ip_hdr->ip_p == IPPROTO_TCP) {
 		struct tcphdr *tcp = get_tcp_header(ip_hdr, len);
 		assert(tcp);
-
 		ja4t_tuple_t t = {.saddr = ip_hdr->ip_src.s_addr, .daddr = ip_hdr->ip_dst.s_addr}; //, .sport = ntohs(tcp->th_sport), .dport = ntohs(tcp->th_dport) };
 		ja4t_timedata_t *timedata = cachehash_get(ch, &t, sizeof(ja4t_tuple_t));
 
@@ -507,7 +506,7 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		fs_populate_icmp_from_iphdr(ip_hdr, len, fs);
 	}
 
-	cachehash_iter( ch, timeout_rst );
+	//cachehash_iter( ch, timeout_rst );
 }
 
 static fielddef_t fields[] = {
@@ -536,7 +535,7 @@ probe_module_t module_ja4ts = {
     .print_packet = NULL,
     .process_packet = &ja4tscan_process_packet,
     .validate_packet = &ja4tscan_validate_packet,
-    .close = &ja4tscan_cleanup,
+    .close = NULL, //&ja4tscan_cleanup, (we rely on cooldown-time instead)
     .helptext = "Probe module that sends a TCP SYN packet to a specific "
 		"port. Possible classifications are: synack and rst. A "
 		"SYN-ACK packet is considered a success and a reset packet "
