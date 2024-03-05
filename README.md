@@ -1,104 +1,85 @@
-# JA4TScan Usage
+# JA4TScan
 
-This fork simply implements a new probe module for Zmap that generates JA4T fingerprints. This is achieved through a single file: `src/probe_modules/module_ja4ts.c`.
+JA4TScan is a probe module for Zmap with a python wrapper that generates TCP server fingerprints with a single SYN packet.  
 
-This is a modifed version of Zmap's default TCP scanner `src/probe_modules/module_tcp_synscan.c`. The main difference is that a new field `ja4ts` is added to the field set. The field is created by capturing the server's synack response parameters specified by the [JA4Ts specification](https://docs.google.com/document/d/1Q6-kk2BcWe5qa2FSwsR5cvbaf5jhaj4LDeFLwBlM6Bc/).
+Past TCP fingerprinting tools were designed to fuzzy match with known operating systems. To acheive that, they ignore elements that can change based on network conditions and produced fingerprints that were not meant to be logged or used for analysis. 
 
-For building from source, follow Zmap's instructions in the installation section below.
+JA4TScan is designed to highlight unusual network conditions and produce a fingerprint that is both human and machine readable to facilitate more effective hunting and analysis.
+
+![JA4T](https://github.com/FoxIO-LLC/ja4/blob/main/technical_details/JA4T.png)
+
+JA4TScan Examples:
+
+| OS/Device/Application | JA4TScan |
+|-----|-----|
+| Windows 10 | 64240_2-1-3-1-1-4_1460_8_1-2-4-8-R6 |
+| Windows 2003 | 16384_2-1-3-1-1-8-1-1-4_1460_00_2-7 |
+| Amazon AWS Linux 2 | 62727_2-4-8-1-3_8961_7_1-2-4-8-16 |
+| Mac OSX / iPhone | 65535_2-1-3-1-1-8-4-0-0_1460_6_1-2-4-8-16-32-12 |
+| F5 Big IP | 4380_2-4-8_1460_0_3-6-12 |
+| HP ILO | 5840_2_1460_00_3-6-12-24-48-60-60-60-60-60 |
+| Epson Printer | 28960_2-4-8-1-3_1460_3_1-4-8-16 |
+| Ubiquiti Router | 43440_2-4-8-1-3_1460_12_1-2-4-8-17 |
+
+Things to think about:  
+Most systems have a Maximum Segment Size (MSS) of 1460. A MSS slightly below 1460, such as 1436, suggests a network element in-line before the system. A MSS around 1380 may suggest the traffic is bouncing through a intermediary device. AWS systems use a MSS of 8961.  
+Windows-based systems tend to send a RST packet after several TCP retransmissions, denoted in the fingerprint with a "R". Linux-based systems do not send RST packets.
 
 ## Usage
 
-This tool can be used the same way as Zmap with a few caveats.
-
 Example:
-`sudo python3 ja4tscan 204.79.197.212/28`
+`sudo python3 ja4tscan.py -p 80 204.79.197.212/28`
+
+Example Output:
+```
+1701655215,204.79.197.208,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655216,204.79.197.209,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655216,204.79.197.210,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655215,204.79.197.211,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655216,204.79.197.212,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655217,204.79.197.213,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655216,204.79.197.214,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655216,204.79.197.215,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655217,204.79.197.216,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655217,204.79.197.217,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655216,204.79.197.218,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655216,204.79.197.219,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655216,204.79.197.220,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655217,204.79.197.221,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655217,204.79.197.222,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1701655217,204.79.197.223,65535_2-1-3-1-1-4_1440_8_0-1-R2
+```
+
+JA4TScan sends a single SYN packet to each destination and then listens for 2 minutes. The destination will respond with a SYN-ACK packet that includes the destination's TCP options. JA4TScan will not respond to the SYN-ACK but will continue to listen. The destination will retransmit the SYN-ACK multiple times, at different intervals depending on how the code was written for that destination device/OS. JA4TScan captures these retransmissions, the time interval between them (in seconds) and adds them to the fingerprint. 
 
 By default, ja4tscan sets the following attributes while calling zmap
   * `--probe-module` flag specifies the probe module to use as ja4ts.
   * `--output-fields` flag specifies the fields to include 'timestamp,saddr,ja4ts' in the output. 
   * `--retransmit` flag is set to "yes" by default, specifying --dedup-method none to be used by zmap.
 
-    When `--dedup-method` is set to `none` retransmission packets are captured. We do this by using iptables to drop RST packets coming from servers. This way, we can receive SYN retransmits.
+    When `--dedup-method` is set to `none` retransmission packets are captured. We do this by using iptables to drop RST packets coming from servers. This way, we can receive SYN-ACK retransmitions.
 
-    when the `retransmit` flag is set to "yes", `dedup-method` is set to full. This means the probe will not generate any SYN retransmits. You will only still be able to record JA4TScan fingerprints for SYN packets but without retrasmissions.
+    When the `retransmit` flag is set to "yes", `dedup-method` is set to full. This means the probe will not generate any SYN-ACK retransmits. You will still be able to record JA4TScan fingerprints for SYN packets but without retrasmissions.
 
-### Instructions to build and run.
+## Build Instructions
 ```
+git clone https://github.com/zmap/zmap
+cp probe_modules.c zmap/src/probe_modules/
+cp module_ja4ts.c zmap/src/probe_modules/
+cd zmap
+cmake -DEXTRA_PROBE_MODULES=probe_modules/module_ja4ts.c
+sudo make install
+
+# Or you can run the batch file:
+
 sudo ./build.sh
 
-# Run with the default mode, i.e., retransmit yes.
+# Run JA4TScan with the default mode, i.e., retransmit yes.
 sudo python3 ja4tscan.py 204.79.197.212/28 
 
 # Run without retransmits
 sudo python3 ja4tscan.py 204.79.197.212/28 --retransmit no
+
+# See all options
+sudo python3 ja4tscan.py --help
 ```
-
-ZMap: The Internet Scanner
-==========================
-
-![Build Status](https://github.com/zmap/zmap/actions/workflows/cmake.yml/badge.svg)
-
-ZMap is a fast single packet network scanner designed for Internet-wide network
-surveys. On a typical desktop computer with a gigabit Ethernet connection, ZMap
-is capable scanning the entire public IPv4 address space on a single port in 
-under 45 minutes. With a 10gigE connection and [PF_RING](http://www.ntop.org/products/packet-capture/pf_ring/),
-ZMap can scan the IPv4 address space in under 5 minutes.
-
-ZMap operates on GNU/Linux, Mac OS, and BSD. ZMap currently has fully implemented
-probe modules for TCP SYN scans, ICMP, DNS queries, UPnP, BACNET, and can send a
-large number of [UDP probes](https://github.com/zmap/zmap/blob/master/examples/udp-probes/README).
-If you are looking to do more involved scans (e.g., banner grab or TLS handshake), 
-take a look at [ZGrab 2](https://github.com/zmap/zgrab2), ZMap's sister project that performs stateful application-layer handshakes.
-
-
-Using ZMap
-----------
-
-If you haven't used ZMap before, we have a step-by-step [Getting Started Guide](https://github.com/zmap/zmap/wiki/Getting-Started-Guide) that details how to perform basic scans. Documentation about all of ZMap's options and more advanced functionality can be found in our [GitHub Wiki](https://github.com/zmap/zmap/wiki). 
-
-If you have questions, please first check our [FAQ](https://github.com/zmap/zmap/wiki/FAQ). Still have questions? Ask the community in [Github Discussions](https://github.com/zmap/zmap/discussions/categories/q-a). Please do not create an Issue for usage or support questions.
-
-Installation
-------------
-
-The latest stable release of ZMap is version [3.0.0](https://github.com/zmap/zmap/releases/tag/v3.0.0) and supports Linux, macOS, and
-BSD. ZMap [4.0.0-RC1](https://github.com/zmap/zmap/releases/tag/v4.0.0-RC1) adds support for scanning multiple ports.
-
-**Instructions on building ZMap from source** can be found in [INSTALL](INSTALL.md).
-
-
-Architecture
-------------
-
-More information about ZMap's architecture and a comparison with other tools can be found in these two research papers:
-
- * [ZMap: Fast Internet-Wide Scanning and its Security Applications](https://zmap.io/paper.pdf)
- * [Zippier ZMap: Internet-Wide Scanning at 10 Gbps](https://jhalderm.com/pub/papers/zmap10gig-woot14.pdf)
-
-If you use ZMap for published research, please cite the original research paper:
-
-```
-@inproceedings{durumeric2013zmap,
-  title={{ZMap}: Fast Internet-wide scanning and its security applications},
-  author={Durumeric, Zakir and Wustrow, Eric and Halderman, J Alex},
-  booktitle={22nd USENIX Security Symposium},
-  year={2013}
-}
-```
-
-Citing the ZMap paper helps us to track ZMap usage within the research community and to pursue funding for continued development.
-
-
-License and Copyright
----------------------
-
-ZMap Copyright 2023 Regents of the University of Michigan
-
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use
-this file except in compliance with the License. You may obtain a copy of the
-License at http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed
-under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-CONDITIONS OF ANY KIND, either express or implied. See LICENSE for the specific
-language governing permissions and limitations under the License.
