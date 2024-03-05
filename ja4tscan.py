@@ -28,10 +28,10 @@ def post_process_output(filename):
         for line in lines[1:]:
             tokens = line.split(',')
             source = int(ipaddress.ip_address(tokens[_idx]))
-            if tokens[ja4_idx].lstrip().startswith('0_00_'):
-                tokens[ja4_idx] = tokens[ja4_idx].replace('0_00_', 'RST-ACK_')
-            if tokens[ja4_idx].rstrip().endswith('_00_00_'):
-                tokens[ja4_idx] = tokens[ja4_idx].replace('_00_00_', 'rst-ack')
+            #if tokens[ja4_idx].lstrip().startswith('0_00_'):
+            #    tokens[ja4_idx] = tokens[ja4_idx].replace('0_00_', 'RST-ACK_')
+            if tokens[ja4_idx].rstrip().endswith('00_00_'):
+                tokens[ja4_idx] = tokens[ja4_idx].replace('00_00_', 'rst-ack')
             lastlines[source] = ','.join(tokens) #line
 
     sorted_ips = sorted([ ip for ip in lastlines ])
@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     if dedup_method == 'none': 
         setup_iptables()
-        cmd = f"zmap -p {sport} -r {rate} {dest} -o {filename} --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method} --cooldown-time=10"
+        cmd = f"zmap -p {sport} -r {rate} {dest} -o {filename} --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method} --cooldown-time=120"
         #         --output-filter='classification=rst'"
     else:
         cleanup_iptables()
