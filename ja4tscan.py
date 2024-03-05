@@ -1,3 +1,8 @@
+# Copyright (c) 2024, FoxIO, All rights reserved.
+# Licensed under the FoxIO License 1.1, see repo root
+# JA4TScan by John Althouse
+# Script by Timothy Noel
+
 import sys
 import os
 import ipaddress
