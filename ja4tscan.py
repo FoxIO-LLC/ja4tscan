@@ -74,6 +74,17 @@ if __name__ == '__main__':
     except Exception as e:
         parser.print_help()
 
+    try:
+        ipaddress.ip_address(dest)
+        with open('./input', 'w') as fp:
+            fp.write(dest)
+        dest = f"-I input"
+    except Exception as e:
+        try:
+            ipaddress.ip_network(dest)
+        except Exception as e:
+            dest = f"-I {dest}"
+
     if args.port:
         sport = args.port
     if args.rate:
