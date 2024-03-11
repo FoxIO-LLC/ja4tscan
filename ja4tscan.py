@@ -59,7 +59,7 @@ if __name__ == '__main__':
         prog='ja4tscan',
         description='JA4TS scanner built over zmap')
 
-    parser.add_argument('dest', help='destination network (ex, 203.123.123.0/24) ')
+    parser.add_argument('dest', help='destination network (ex, 203.123.123.0/24) / destination IP (ex, 10.10.10.10) / path to a file containing a list of IPs')
     parser.add_argument('-r', '--rate', help='zmap rate (defaults to 10)')
     parser.add_argument('-p', '--port', help='tcp source port (defaults to 80)')
     parser.add_argument('--output-fields', help='zmap output fields (defaults to timestamp,saddr,ja4tscan)')

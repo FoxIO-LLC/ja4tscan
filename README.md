@@ -27,7 +27,9 @@ Windows-based systems tend to send a RST packet after several TCP retransmission
 
 ## Usage
 
-Example:
+You can use ja4tscan to probe any given network, a single IP, or a list of IP addresses specified in a file.
+
+Example - Probe a network:
 `sudo python3 ja4tscan.py -p 80 204.79.197.212/28`
 
 Example Output:
@@ -48,6 +50,30 @@ Example Output:
 1701655217,204.79.197.221,65535_2-1-3-1-1-4_1440_8_0-1-R2
 1701655217,204.79.197.222,65535_2-1-3-1-1-4_1440_8_0-1-R2
 1701655217,204.79.197.223,65535_2-1-3-1-1-4_1440_8_0-1-R2
+```
+
+Example - Probe a single IP:
+`sudo python3 ja4tscan.py -p 80 204.79.197.223`
+
+Example Output:
+```
+1710168119,204.79.197.223,65535_2-1-3-1-1-4_1440_8_0-1-R2
+```
+
+Example - Probe a list of IPs:
+`sudo python3 ja4tscan.py -p 80 iplist`
+
+Example Input - contents of file "iplist":
+```
+204.79.197.216
+204.79.197.217
+204.79.197.212
+```
+Example Output:
+```
+1710168610,204.79.197.212,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1710168610,204.79.197.216,65535_2-1-3-1-1-4_1440_8_0-1-R2
+1710168610,204.79.197.217,65535_2-1-3-1-1-4_1440_8_0-1-R2
 ```
 
 JA4TScan sends a single SYN packet to each destination and then listens for 2 minutes. The destination will respond with a SYN-ACK packet that includes the destination's TCP options. JA4TScan will not respond to the SYN-ACK but will continue to listen. The destination will retransmit the SYN-ACK multiple times, at different intervals depending on how the code was written for that destination device/OS. JA4TScan captures these retransmissions, the time interval between them (in seconds) and adds them to the fingerprint. 
