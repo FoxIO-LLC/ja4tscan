@@ -2,6 +2,8 @@
 
 JA4TScan is a probe module for Zmap with a python wrapper that generates TCP server fingerprints with a single SYN packet.  
 
+Inspiration came from p0f (Michał Zalewski), Hershel+ (Zain Shamsi & Dmitri Loguinov), and gait (Charles Smutz & Brandon A. Thomas).
+
 Past TCP fingerprinting tools were designed to fuzzy match with known operating systems. To achieve that, they ignore elements that can change based on network conditions and produced fingerprints that were not meant to be logged or used as pivot points in analysis. 
 
 JA4TScan is designed to highlight unusual network conditions and produce a fingerprint that is both human and machine readable to facilitate more effective hunting and analysis. While still able to identify the OS/Device, JA4TScan also helps to identify intermediary proxies, load balancers, port forwarding, etc.
