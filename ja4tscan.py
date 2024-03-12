@@ -7,6 +7,8 @@ import sys
 import os
 import ipaddress
 import argparse
+import signal
+
 
 def setup_iptables():
     print('adding iptable rules...')
@@ -21,6 +23,10 @@ def cleanup_iptables():
     os.system('iptables -t filter -D INPUT -i lo -j ACCEPT')
     os.system('iptables -t filter -D INPUT -p icmp -j ACCEPT')
     os.system('iptables -t filter -D INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT')
+
+def handler(signum, frame):
+    signal.signal(signum, signal.SIG_IGN)
+    cleanup_iptables()
 
 def post_process_output(filename):
     lastlines = {}
@@ -55,6 +61,7 @@ if __name__ == '__main__':
     dedup_method = 'none'
     dest = None
 
+    signal.signal(signal.SIGINT, handler)
     parser = argparse.ArgumentParser(
         prog='ja4tscan',
         description='JA4TS scanner built over zmap')
@@ -107,12 +114,14 @@ if __name__ == '__main__':
     try:
         ret = os.system(cmd)
         if ret > 0:
+            cleanup_iptables()
             sys.exit(0)
 
         post_process_output(filename)
         if output_file == 'console':
             os.system(f"cat {filename}")
     except Exception as e:
+        cleanup_iptables()
         sys.exit(0)
 
     if dedup_method == 'none': 
