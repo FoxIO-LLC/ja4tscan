@@ -110,3 +110,6 @@ sudo python3 ja4tscan.py -p 80 204.79.197.212/28 --retransmit no
 # See all options
 sudo python3 ja4tscan.py --help
 ```
+## License
+JA4TScan is licensed under the FoxIO License 1.1
+See [License Information](https://github.com/FoxIO-LLC/ja4?tab=readme-ov-file#licensing) for more details.
