@@ -2,9 +2,9 @@
 
 JA4TScan is a probe module for Zmap with a python wrapper that generates TCP server fingerprints with a single SYN packet.  
 
-Past TCP fingerprinting tools were designed to fuzzy match with known operating systems. To acheive that, they ignore elements that can change based on network conditions and produced fingerprints that were not meant to be logged or used for analysis. 
+Past TCP fingerprinting tools were designed to fuzzy match with known operating systems. To acheive that, they ignore elements that can change based on network conditions and produced fingerprints that were not meant to be logged or used as pivot points in analysis. 
 
-JA4TScan is designed to highlight unusual network conditions and produce a fingerprint that is both human and machine readable to facilitate more effective hunting and analysis.
+JA4TScan is designed to highlight unusual network conditions and produce a fingerprint that is both human and machine readable to facilitate more effective hunting and analysis. While still able to identify the OS/Device, JA4TScan also helps to identify intermediary proxies, load balancers, port forwarding, etc.
 
 ![JA4T](https://github.com/FoxIO-LLC/ja4/blob/main/technical_details/JA4T.png)
 
@@ -22,7 +22,8 @@ JA4TScan Examples:
 | Ubiquiti Router | 43440_2-4-8-1-3_1460_12_1-2-4-8-17 |
 
 Things to think about:  
-Most systems have a Maximum Segment Size (MSS) of 1460. A MSS slightly below 1460, such as 1436, suggests a network element in-line before the system. A MSS around 1380 may suggest the traffic is bouncing through a intermediary device. AWS systems use a MSS of 8961.  
+Most systems have a Maximum Segment Size (MSS) of 1460. A MSS slightly below 1460, such as 1436, suggests a network element in-line before the system. A MSS around 1380 may suggest the traffic is bouncing through a intermediary device. AWS systems use a MSS of 8961. More testing is ongoing to correlate an amount of MSS and Window Size change to corresponding network conditions.
+
 Windows-based systems tend to send a RST packet after several TCP retransmissions, denoted in the fingerprint with a "R". Linux-based systems do not send RST packets.
 
 ## Usage
@@ -101,10 +102,10 @@ sudo make install
 sudo ./build.sh
 
 # Run JA4TScan with the default mode, i.e., retransmit yes.
-sudo python3 ja4tscan.py 204.79.197.212/28 
+sudo python3 ja4tscan.py -p 80 204.79.197.212/28 
 
 # Run without retransmits
-sudo python3 ja4tscan.py 204.79.197.212/28 --retransmit no
+sudo python3 ja4tscan.py -p 80 204.79.197.212/28 --retransmit no
 
 # See all options
 sudo python3 ja4tscan.py --help
