@@ -92,15 +92,10 @@ By default, ja4tscan sets the following attributes while calling zmap
 
 ## Build Instructions
 ```
-git clone https://github.com/zmap/zmap
-cp probe_modules.c zmap/src/probe_modules/
-cp module_ja4ts.c zmap/src/probe_modules/
-cd zmap
-cmake -DEXTRA_PROBE_MODULES=probe_modules/module_ja4ts.c
-sudo make install
+# Clone this repo
+git clone https://github.com/FoxIO-LLC/ja4tscan
 
-# Or you can run the batch file:
-
+# Run our build script
 sudo ./build.sh
 
 # Run JA4TScan with the default mode, i.e., retransmit yes.
