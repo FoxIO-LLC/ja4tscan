@@ -211,7 +211,7 @@ static int ja4tscan_cleanup(struct state_conf *zconf,
 }
 
 
-static int ja4tscan_init_perthread(void *buf, macaddr_t *src, macaddr_t *gw,
+static int ja4tscan_prepare_packet(void *buf, macaddr_t *src, macaddr_t *gw,
 				   UNUSED void **arg_ptr)
 {
 	struct ether_header *eth_header = (struct ether_header *)buf;
@@ -236,6 +236,7 @@ static int ja4tscan_make_packet(void *buf, size_t *buf_len, ipaddr_n_t src_ip,
 	struct ip *ip_header = (struct ip *)(&eth_header[1]);
 	struct tcphdr *tcp_header = (struct tcphdr *)(&ip_header[1]);
 	uint32_t tcp_seq = validation[0];
+
 
 	//uint8_t *tcp_options =
 	//    (uint8_t *)(&tcp_header[1]); // Points to the start of TCP options
@@ -530,7 +531,8 @@ probe_module_t module_ja4ts = {
     .pcap_snaplen = 256,
     .port_args = 1,
     .global_initialize = &ja4tscan_global_initialize,
-    .thread_initialize = &ja4tscan_init_perthread,
+    //.thread_initialize = &ja4tscan_init_perthread,
+    .prepare_packet = &ja4tscan_prepare_packet,
     .make_packet = &ja4tscan_make_packet,
     .print_packet = NULL,
     .process_packet = &ja4tscan_process_packet,
