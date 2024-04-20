@@ -7,12 +7,15 @@
 
 echo "fetching zmap sources"
 git clone https://github.com/zmap/zmap
+cd zmap
+git checkout v4.0.0-RC1
+git status
 
-cp probe_modules.c zmap/src/probe_modules/
-cp module_ja4ts.c zmap/src/probe_modules/
+cp ../probe_modules.c src/probe_modules/
+cp ../module_ja4ts.c src/probe_modules/
 
 echo 'building using cmake...'
-cd zmap && cmake -DEXTRA_PROBE_MODULES=probe_modules/module_ja4ts.c && make install
+cmake -DEXTRA_PROBE_MODULES=probe_modules/module_ja4ts.c && make install
 
 echo "You can now run python3 ja4tscan.py"
 

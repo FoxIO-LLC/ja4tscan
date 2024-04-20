@@ -42,7 +42,6 @@
 
 static uint16_t num_source_ports;
 static cachehash *ch = NULL;
-static int timed_out_entries = 0;
 fielddefset_t *ja4ts_fds;
 
 typedef struct ja4t_tuple {
@@ -163,27 +162,6 @@ static void compute_ja4ts( fieldset_t *fs, ja4t_timedata_t *timedata ) {
 	fs_add_null_icmp(fs);
 }
 
-static void *timeout_rst ( void *data ) {
-	ja4t_timedata_t *t = data;
-	if ( t && (t->rst == 0)) {
-	    struct timespec now;	
-	    timed_out_entries++;
-	    clock_gettime(CLOCK_REALTIME, &now);
-	    if ((now.tv_sec - t->ts.tv_sec) >= RST_TIMEOUT) {
-                    //fieldset_t *fs = fs_new_fieldset(ja4ts_fds);
-	            if (t->ip->ip_p == IPPROTO_TCP) {
-	                    //fs_add_ip_fields(fs, t->ip);
-		            // Set RST and FS
-		            t->rst = 1;
-	                    timed_out_entries--;
-		            //t->fs = fs;
-		            //compute_ja4ts(t->fs, t);
-			    //printf("Computed ja4 final hash for ip %s\n", make_ip_str(t->ip->ip_src.s_addr));
-		    }
-	    }
-	}
-}
-
 static int ja4tscan_global_initialize(struct state_conf *state)
 {
 	num_source_ports =
@@ -193,25 +171,8 @@ static int ja4tscan_global_initialize(struct state_conf *state)
 	return EXIT_SUCCESS;
 }
 
-static int ja4tscan_cleanup(struct state_conf *zconf,
-	UNUSED struct state_send *zsend,
-	UNUSED struct state_recv *zrecv)
-{
-	if (zconf->dedup_method == DEDUP_METHOD_NONE) {
-		// we wait for 2 minutes with an interval of 30 seconds
-		for (int i=0; i<12; i++) {
-		    sleep(10);
-		    timed_out_entries = 0;
-	            cachehash_iter( ch, timeout_rst );
-		    if (timed_out_entries == 0)
-	 	        break;
-		}
-	}
-	return EXIT_SUCCESS;
-}
-
-
 static int ja4tscan_prepare_packet(void *buf, macaddr_t *src, macaddr_t *gw,
+				   //port_h_t dest_port,
 				   UNUSED void **arg_ptr)
 {
 	struct ether_header *eth_header = (struct ether_header *)buf;
@@ -323,6 +284,7 @@ static int ja4tscan_validate_packet(const struct ip *ip_hdr, uint32_t len,
 		}
 		validate_gen(ip_hdr->ip_dst.s_addr, ip_inner->ip_dst.s_addr,
 			     tcp->th_dport, (uint8_t *)validation);
+			     //(uint8_t *)validation);
 		if (!check_dst_port(sport, num_source_ports, validation)) {
 			return PACKET_INVALID;
 		}
@@ -506,8 +468,6 @@ static void ja4tscan_process_packet(const u_char *packet, UNUSED uint32_t len,
 		// icmp
 		fs_populate_icmp_from_iphdr(ip_hdr, len, fs);
 	}
-
-	//cachehash_iter( ch, timeout_rst );
 }
 
 static fielddef_t fields[] = {
@@ -531,13 +491,13 @@ probe_module_t module_ja4ts = {
     .pcap_snaplen = 256,
     .port_args = 1,
     .global_initialize = &ja4tscan_global_initialize,
-    //.thread_initialize = &ja4tscan_init_perthread,
-    .prepare_packet = &ja4tscan_prepare_packet,
+    .thread_initialize = &ja4tscan_prepare_packet,
+    //.prepare_packet = &ja4tscan_prepare_packet,
     .make_packet = &ja4tscan_make_packet,
     .print_packet = NULL,
     .process_packet = &ja4tscan_process_packet,
     .validate_packet = &ja4tscan_validate_packet,
-    .close = NULL, //&ja4tscan_cleanup, (we rely on cooldown-time instead)
+    .close = NULL, 
     .helptext = "Probe module that sends a TCP SYN packet to a specific "
 		"port. Possible classifications are: synack and rst. A "
 		"SYN-ACK packet is considered a success and a reset packet "
