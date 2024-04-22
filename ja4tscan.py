@@ -81,16 +81,16 @@ if __name__ == '__main__':
     except Exception as e:
         parser.print_help()
 
-    try:
-        ipaddress.ip_address(dest)
-        with open('./input', 'w') as fp:
-            fp.write(dest)
-        dest = f"-I input"
-    except Exception as e:
-        try:
-            ipaddress.ip_network(dest)
-        except Exception as e:
-            dest = f"-I {dest}"
+    #try:
+    #    ipaddress.ip_address(dest)
+    #    with open('./input', 'w') as fp:
+    #        fp.write(dest)
+    #    dest = f"-I input"
+    #except Exception as e:
+    #    try:
+    #        ipaddress.ip_network(dest)
+    #    except Exception as e:
+    #        dest = f"-I {dest}"
 
     if args.port:
         sport = args.port
@@ -107,10 +107,11 @@ if __name__ == '__main__':
         setup_iptables()
         cmd = f"zmap -p {sport} -r {rate} {dest} -o {filename} --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method} --cooldown-time=120"
         #         --output-filter='classification=rst'"
+        #print (cmd)
     else:
         cleanup_iptables()
         cmd = f"zmap -p {sport} -r {rate} {dest} -o {filename} --output-fields={output_fields} --probe-module=ja4ts --dedup-method {dedup_method}"
-
+        #print (cmd)
     try:
         ret = os.system(cmd)
         if ret > 0:
