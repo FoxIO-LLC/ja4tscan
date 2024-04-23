@@ -12,10 +12,10 @@ git checkout v4.0.0-RC1
 git status
 
 cp ../probe_modules.c src/probe_modules/
-cp ../module_ja4ts.c src/probe_modules/
+cp ../module_ja4tscan.c src/probe_modules/
 
 echo 'building using cmake...'
-cmake -DEXTRA_PROBE_MODULES=probe_modules/module_ja4ts.c && make install
+cmake -DEXTRA_PROBE_MODULES=probe_modules/module_ja4tscan.c && make install
 
 echo "You can now run python3 ja4tscan.py"
 

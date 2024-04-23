@@ -82,8 +82,8 @@ Example Output:
 JA4TScan sends a single SYN packet to each destination and then listens for 2 minutes. The destination will respond with a SYN-ACK packet that includes the destination's TCP options. JA4TScan will not respond to the SYN-ACK but will continue to listen. The destination will retransmit the SYN-ACK multiple times, at different intervals depending on how the code was written for that destination device/OS. JA4TScan captures these retransmissions, the time interval between them (in seconds) and adds them to the fingerprint. 
 
 By default, ja4tscan sets the following attributes while calling zmap
-  * `--probe-module` flag specifies the probe module to use as ja4ts.
-  * `--output-fields` flag specifies the fields to include 'timestamp,saddr,ja4ts' in the output. 
+  * `--probe-module` flag specifies the probe module to use as ja4tscan.
+  * `--output-fields` flag specifies the fields to include 'timestamp,saddr,ja4tscan' in the output. 
   * `--retransmit` flag is set to "yes" by default, specifying --dedup-method none to be used by zmap.
 
     When `--dedup-method` is set to `none` retransmission packets are captured. We do this by using iptables to drop RST packets coming from servers. This way, we can receive SYN-ACK retransmitions.
