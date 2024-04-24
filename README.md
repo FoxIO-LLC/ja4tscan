@@ -1,3 +1,7 @@
+Please read our blogs for details on how JA4+ Network Fingerprinting works, why it works, and examples of what can be detected/prevented with it:  
+[JA4+ Network Fingerprinting](https://blog.foxio.io/ja4%2B-network-fingerprinting) (JA4/S/H/L/X/SSH)  
+[JA4T: TCP Fingerprinting](https://blog.foxio.io/ja4t-tcp-fingerprinting) (JA4T/TS/TScan)
+
 # JA4TScan
 
 JA4TScan is a probe module for Zmap with a python wrapper that generates TCP server fingerprints with a single SYN packet.  
