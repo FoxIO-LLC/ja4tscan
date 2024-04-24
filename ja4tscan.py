@@ -83,9 +83,9 @@ if __name__ == '__main__':
 
     try:
         ipaddress.ip_address(dest)
-        #with open('./input', 'w') as fp:
-        #    fp.write(dest)
-        #dest = f"-I input"
+        with open('./input', 'w') as fp:
+            fp.write(dest)
+        dest = f"-I input"
     except Exception as e:
         try:
             ipaddress.ip_network(dest)

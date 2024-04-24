@@ -8,7 +8,7 @@
 echo "fetching zmap sources"
 git clone https://github.com/zmap/zmap
 cd zmap
-git checkout v4.0.0-RC1
+git checkout v4.1.0-RC1
 git status
 
 cp ../probe_modules.c src/probe_modules/

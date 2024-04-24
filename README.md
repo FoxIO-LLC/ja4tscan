@@ -91,7 +91,7 @@ By default, ja4tscan sets the following attributes while calling zmap
     When the `retransmit` flag is set to "yes", `dedup-method` is set to full. This means the probe will not generate any SYN-ACK retransmits. You will still be able to record JA4TScan fingerprints for SYN packets but without retrasmissions.
 
 ## Build Instructions
-JA4TScan is currently available for zmap version 4.0.0.
+JA4TScan is currently available for zmap version 4.1.0.
 
 ```
 # Clone this repo
