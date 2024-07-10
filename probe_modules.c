@@ -74,7 +74,7 @@ void fs_add_ip_fields(fieldset_t *fs, struct ip *ip)
 
 #define TIMESTR_LEN 55
 
-void fs_add_system_fields(fieldset_t *fs, int is_repeat, int in_cooldown)
+void fs_add_system_fields(fieldset_t *fs, int is_repeat, int in_cooldown, const struct timespec ts)
 {
         fs_add_bool(fs, "repeat", is_repeat);
         fs_add_bool(fs, "cooldown", in_cooldown);
