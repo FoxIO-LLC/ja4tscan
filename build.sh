@@ -14,6 +14,9 @@ git status
 cp ../probe_modules.c src/probe_modules/
 cp ../module_ja4tscan.c src/probe_modules/
 
+echo "installing dependencies"
+sudo apt-get install build-essential cmake libgmp3-dev gengetopt libpcap-dev flex byacc libjson-c-dev pkg-config libunistring-dev libjudy-dev -y
+
 echo 'building using cmake...'
 cmake -DEXTRA_PROBE_MODULES=probe_modules/module_ja4tscan.c && make install
 

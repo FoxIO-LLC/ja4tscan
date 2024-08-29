@@ -90,7 +90,8 @@ if __name__ == '__main__':
         try:
             ipaddress.ip_network(dest)
         except Exception as e:
-            dest = f"-I {dest}"
+            if "host bits" not in str(e):
+                dest = f"-I {dest}"
 
     if args.port:
         sport = args.port
